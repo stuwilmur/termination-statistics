@@ -30,8 +30,12 @@
 
 	}
 	
-	.axis {
+	.yaxis {
 		font-family: 'Merriweather', serif;
+	}
+
+	.xaxis {
+	        font-family: 'Merriweather', serif;
 	}
 	
 	.subcaption {
@@ -39,7 +43,8 @@
 	}
 	
 	a {
-		text-decoration: none;
+	text-decoration: none;
+	color : black;
 	}
 
 	a:hover {
@@ -91,6 +96,7 @@ var Tooltip = d3.select("#my_dataviz")
   .style("padding", "5px")
   .style("position", "absolute")
   .style("font-family", "Merriweather")
+  .style("font-size", "80%")
   
 // Three function that change the tooltip when user hover / move / leave a cell
 var mouseover = function(d) {
@@ -149,7 +155,7 @@ d3.csv("termination_rates.csv", function(rates_data) {
 		  .domain([2013,2017])
 		  .range([ 0, width ]);
 		svg.append("g")
-		  .attr("class", "axis")
+		  .attr("class", "xaxis")
 		  .attr("transform", "translate(0," + height + ")")
 		  .call(d3.axisBottom(x).ticks(5).tickFormat(d3.format("d")));
 
@@ -158,11 +164,9 @@ d3.csv("termination_rates.csv", function(rates_data) {
 		  .domain( [0,theMax])
 		  .range([ height, 0 ]);
 		svg.append("g")
-		  .attr("class", "axis")
+		  .attr("class", "yaxis")
 		  .call(d3.axisLeft(y));
 		  
-
-
 		// Initialize line with group a
 		var line = svg
 		  .append('g')
