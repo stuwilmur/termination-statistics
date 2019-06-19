@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <title>Scotland termination figures</title>
+ 
+<meta charset="utf-8">
+
+<!-- Load d3.js -->
+<script src="https://d3js.org/d3.v4.js"></script>
+
+<!-- Initialize a select button -->
+<select id="selectButton"></select>
+
+<!-- Initialize a menu for the outcome -->
+<select id="outcomeButton"></select>
+
+<!-- Create a div where the graph will take place -->
+<div id="my_dataviz"></div>
+
+<!-- Color Scale -->
+<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+
+<!-- Font -->
+<link href="https://fonts.googleapis.com/css?family=Merriweather&display=swap" rel="stylesheet">
+
+<style>
+
+	body {
+		font-family: 'Merriweather', serif;
+
+	}
+	
+	.axis {
+		font-family: 'Merriweather', serif;
+	}
+	
+	.subcaption {
+		font-size : 80%;
+	}
+	
+	a {
+		text-decoration: none;
+	}
+
+	a:hover {
+	  text-decoration: underline;
+	}
+
+	a:active {
+	  color: black;
+	}
+
+	a:visited {
+	  color: black;
+}
+
+
+</style>
+
+</head>
+<body>
+<p class="caption">Termination figures for Scotland by Local Authority 2013-2017.</p>
+<p class="subcaption">Data from the <a href="https://hpsmicrosites.scot.nhs.uk/shbbv-framework-data-portal.aspx">Scottish Government's Sexual Health and Blood Borne Virus (SHBBV) open access Data Portal</a>.</p>
+
+<script>
+
+// set the dimensions and margins of the graph
+var margin = {top: 10, right: 100, bottom: 30, left: 50},
+    width = 500 - margin.left - margin.right,
+    height = 400 - margin.top - margin.bottom;
+
+// append the svg object to the body of the page
+var svg = d3.select("#my_dataviz")
+  .append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform",
+          "translate(" + margin.left + "," + margin.top + ")");
+		  
+// create a tooltip
+var Tooltip = d3.select("#my_dataviz")
+  .append("div")
+  .attr("class", "tooltip")
+  .style("opacity", 0)
+  .attr("class", "tooltip")
+  .style("background-color", "white")
+  .style("border", "solid")
+  .style("border-width", "2px")
+  .style("border-radius", "5px")
+  .style("padding", "5px")
+  .style("position", "absolute")
+  .style("font-family", "Merriweather")
+  
+// Three function that change the tooltip when user hover / move / leave a cell
+var mouseover = function(d) {
+Tooltip
+  .style("opacity", 1)
+}
+
+var mousemove = function(d) {
+Tooltip
+  .html(d.year + ": " + d.value)
+  .style("left", (d3.mouse(this)[0]+70) + "px")
+  .style("top", (d3.mouse(this)[1]) + "px")
+}
+
+var mouseleave = function(d) {
+Tooltip
+  .style("opacity", 0)
+}
+
+var firstOutcome = "totals";
+var firstGroup = "Aberdeen City";
+
+//Read the data
+d3.csv("termination_rates.csv", function(rates_data) {
+	d3.csv("termination_totals.csv", function(data) {
+
+		// Create data usng initial selection
+		var theData = firstOutcome == "totals" ? data : rates_data;
+		var theMax = firstOutcome == "totals" ? 2000 : 20;
+		var dataFilter = theData.map(function(d){return {year: d.year, value:d[firstGroup]} })
+
+		// List of groups (here I have one group per column)
+		var allGroup = data.columns.slice(1)
+
+		// add the options to the button
+		d3.select("#selectButton")
+		  .selectAll('myOptions')
+			.data(allGroup)
+		  .enter()
+			.append('option')
+		  .text(function (d) { return d; }) // text showed in the menu
+		  .attr("value", function (d) { return d; }) // corresponding value returned by the button
+		  
+		 // add the options to the outcomes button
+		 d3.select("#outcomeButton")
+		 .append("option")
+		 .text("totals")
+		 .attr("value", "totals");
+		 d3.select("#outcomeButton")
+		 .append("option")
+		 .text("rates")
+		 .attr("value", "rates");
+
+		// Add X axis --> it is a date format
+		var x = d3.scaleLinear()
+		  .domain([2013,2017])
+		  .range([ 0, width ]);
+		svg.append("g")
+		  .attr("class", "axis")
+		  .attr("transform", "translate(0," + height + ")")
+		  .call(d3.axisBottom(x).ticks(5).tickFormat(d3.format("d")));
+
+		// Add Y axis
+		var y = d3.scaleLinear()
+		  .domain( [0,theMax])
+		  .range([ height, 0 ]);
+		svg.append("g")
+		  .attr("class", "axis")
+		  .call(d3.axisLeft(y));
+		  
+
+
+		// Initialize line with group a
+		var line = svg
+		  .append('g')
+		  .append("path")
+			.datum(dataFilter)
+			.attr("d", d3.line()
+			  .x(function(d) { return x(+d.year) })
+			  .y(function(d) { return y(+d.value) })
+			)
+			.attr("stroke", "black")
+			.style("stroke-width", 4)
+			.style("fill", "none")
+
+		// Initialize dots with group a
+		var dot = svg
+		  .selectAll('circle')
+		  .data(dataFilter)
+		  .enter()
+		  .append('circle')
+			.attr("cx", function(d) { return x(+d.year) })
+			.attr("cy", function(d) { return y(+d.value) })
+			.attr("r", 7)
+			.style("fill", "#69b3a2")
+			.on("mouseover", mouseover)
+			.on("mousemove", mousemove)
+			.on("mouseleave", mouseleave)
+
+
+		// A function that updates the chart
+		function update(selectedGroup, selectedOutcome) {
+
+		// Create new data with the selection?  
+		var theData = selectedOutcome == "totals" ? data : rates_data;
+		var theMax = selectedOutcome == "totals" ? 2000 : 20;
+		
+		var dataFilter = theData.map(function(d){return {year: d.year, value:d[selectedGroup]} })
+		  
+		// Y axis
+		var y = d3.scaleLinear()
+		.domain( [0,theMax])
+		.range([ height, 0 ]);
+		svg.select(".yaxis")
+		.transition()
+		.duration(1000)
+		.call(d3.axisLeft(y));
+
+		  // Give these new data to update line
+		  line
+			  .datum(dataFilter)
+			  .transition()
+			  .duration(1000)
+			  .attr("d", d3.line()
+				.x(function(d) { return x(+d.year) })
+				.y(function(d) { return y(+d.value) })
+			  )
+		  dot
+			.data(dataFilter)
+			.transition()
+			.duration(1000)
+			  .attr("cx", function(d) { return x(+d.year) })
+			  .attr("cy", function(d) { return y(+d.value) })
+			  
+		
+
+		}
+		
+		function optionsAndUpdate(d)
+		{
+			// recover the option that has been chosen
+			var selectedOption = d3.select("#selectButton").property("value")
+			var selectedOutcome = d3.select("#outcomeButton").property("value")
+			// run the updateChart function with this selected option
+			update(selectedOption, selectedOutcome)
+		}
+
+		// When the button is changed, run the updateChart function
+		d3.select("#selectButton").on("change", optionsAndUpdate)
+		
+		// add a listener to outcome selector
+		d3.select('#outcomeButton').on("change", optionsAndUpdate)
+		
+
+	})
+})
+
+
+</script>
+</body>
+</html>
