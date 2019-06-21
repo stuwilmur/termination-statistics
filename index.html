@@ -8,14 +8,7 @@
 <!-- Load d3.js -->
 <script src="https://d3js.org/d3.v4.js"></script>
 
-<!-- Initialize a select button -->
-<select id="selectButton"></select>
 
-<!-- Initialize a menu for the outcome -->
-<select id="outcomeButton"></select>
-
-<!-- Create a div where the graph will take place -->
-<div id="my_dataviz"></div>
 
 <!-- Color Scale -->
 <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
@@ -36,6 +29,10 @@
 
 	.xaxis {
 	        font-family: 'Merriweather', serif;
+	}
+	
+	.ylabel {
+		font-size : 80%;
 	}
 	
 	.subcaption {
@@ -64,15 +61,23 @@
 
 </head>
 <body>
+<!-- Initialize a menu for the measure -->
+<select id="measureButton"></select>
+
+<!-- Create a div where the graph will take place -->
+<div id="my_dataviz"></div>
 <p class="caption">Termination figures for Scotland by Local Authority 2013-2017.</p>
 <p class="subcaption">Data from the <a href="https://hpsmicrosites.scot.nhs.uk/shbbv-framework-data-portal.aspx">Scottish Government's Sexual Health and Blood Borne Virus (SHBBV) open access Data Portal</a>.</p>
 
 <script>
 
+var codesMap = new Map();
+
 // set the dimensions and margins of the graph
-var margin = {top: 10, right: 100, bottom: 30, left: 50},
-    width = 500 - margin.left - margin.right,
+var margin = {top: 20, right: 100, bottom: 30, left: 70},
+    width = 900 - margin.left - margin.right,
     height = 400 - margin.top - margin.bottom;
+	chartWidth = width / 2;
 
 // append the svg object to the body of the page
 var svg = d3.select("#my_dataviz")
@@ -86,13 +91,26 @@ var svg = d3.select("#my_dataviz")
 // create a tooltip
 var Tooltip = d3.select("#my_dataviz")
   .append("div")
-  .attr("class", "tooltip")
   .style("opacity", 0)
   .attr("class", "tooltip")
   .style("background-color", "white")
   .style("border", "solid")
-  .style("border-width", "2px")
-  .style("border-radius", "5px")
+  .style("border-width", "1px")
+  .style("border-radius", "0px")
+  .style("padding", "5px")
+  .style("position", "absolute")
+  .style("font-family", "Merriweather")
+  .style("font-size", "80%")
+  
+// create a tooltip for the map
+var mapTooltip = d3.select("#my_dataviz")
+  .append("div")
+  .style("opacity", 0.1)
+  .attr("class", "tooltip")
+  .style("background-color", "white")
+  .style("border", "none")
+  .style("border-width", "1px")
+  .style("border-radius", "0px")
   .style("padding", "5px")
   .style("position", "absolute")
   .style("font-family", "Merriweather")
@@ -116,139 +134,279 @@ Tooltip
   .style("opacity", 0)
 }
 
-var firstOutcome = "totals";
-var firstGroup = "Aberdeen City";
+// Three function that change the map tooltip when user hover / move / leave a feature
+var mapmouseover = function(d) {
+mapTooltip
+  .style("opacity", 1)
+  
+  d3.select(this)
+	.style('fill', colours.teal)
+	.style("opacity", d.properties.LAD13CD == selectedRegion ? 1 : 0.5)
+}
 
-//Read the data
-d3.csv("termination_rates.csv", function(rates_data) {
-	d3.csv("termination_totals.csv", function(data) {
+var mapmousemove = function(d) {
+mapTooltip
+  .html(codesMap.get(d.properties.LAD13CD))
+  .style("left", (d3.mouse(this)[0] + 20) + "px")
+  .style("top", (d3.mouse(this)[1]) + "px")
+}
 
-		// Create data usng initial selection
-		var theData = firstOutcome == "totals" ? data : rates_data;
-		var theMax = firstOutcome == "totals" ? 2000 : 20;
-		var dataFilter = theData.map(function(d){return {year: d.year, value:d[firstGroup]} })
+var mapmouseleave = function(d) {
+mapTooltip
+  .style("opacity", 0)
+  
+  d3.select(this)
+	.style('fill', getRegionColour(d))
+	.style("opacity", 1)
+}
 
-		// List of groups (here I have one group per column)
-		var allGroup = data.columns.slice(1)
+var mapmouseclick = function(d) {
+	selectedRegion = d.properties.LAD13CD;
+	optionsAndUpdate();
+	updateRegionColours();
+}
 
-		// add the options to the button
-		d3.select("#selectButton")
-		  .selectAll('myOptions')
-			.data(allGroup)
-		  .enter()
-			.append('option')
-		  .text(function (d) { return d; }) // text showed in the menu
-		  .attr("value", function (d) { return d; }) // corresponding value returned by the button
-		  
-		 // add the options to the outcomes button
-		 d3.select("#outcomeButton")
-		 .append("option")
-		 .text("totals")
-		 .attr("value", "totals");
-		 d3.select("#outcomeButton")
-		 .append("option")
-		 .text("rates")
-		 .attr("value", "rates");
+var measuresList = [
+	[
+		"totals",
+		"Total number of terminations"
+	],
+	[
+		"rates",
+		"Termination rate per 1000 women aged 15-44"
+	]
+];
 
-		// Add X axis --> it is a date format
-		var x = d3.scaleLinear()
-		  .domain([2013,2017])
-		  .range([ 0, width ]);
-		svg.append("g")
-		  .attr("class", "xaxis")
-		  .attr("transform", "translate(0," + height + ")")
-		  .call(d3.axisBottom(x).ticks(5).tickFormat(d3.format("d")));
+var measures = new Map(measuresList);
 
-		// Add Y axis
-		var y = d3.scaleLinear()
-		  .domain( [0,theMax])
-		  .range([ height, 0 ]);
-		svg.append("g")
-		  .attr("class", "yaxis")
-		  .call(d3.axisLeft(y));
-		  
-		// Initialize line with group a
-		var line = svg
-		  .append('g')
-		  .append("path")
-			.datum(dataFilter)
-			.attr("d", d3.line()
-			  .x(function(d) { return x(+d.year) })
-			  .y(function(d) { return y(+d.value) })
-			)
-			.attr("stroke", "black")
-			.style("stroke-width", 4)
-			.style("fill", "none")
+var firstMeasure = "totals";
+var firstGroup = "S12000033";
 
-		// Initialize dots with group a
-		var dot = svg
-		  .selectAll('circle')
-		  .data(dataFilter)
-		  .enter()
-		  .append('circle')
-			.attr("cx", function(d) { return x(+d.year) })
-			.attr("cy", function(d) { return y(+d.value) })
-			.attr("r", 7)
-			.style("fill", "#69b3a2")
-			.on("mouseover", mouseover)
-			.on("mousemove", mousemove)
-			.on("mouseleave", mouseleave)
+var projection = d3.geoMercator()
+  .scale(1800)
+  .translate([width, height / 2])
+  .center([-4, 58]);
 
+var geoGenerator = d3.geoPath()
+  .projection(projection);
 
-		// A function that updates the chart
-		function update(selectedGroup, selectedOutcome) {
+function getRegionColour(d) { 
+	return d.properties.LAD13CD == selectedRegion ? colours.teal : colours.grey;
+}
 
-		// Create new data with the selection?  
-		var theData = selectedOutcome == "totals" ? data : rates_data;
-		var theMax = selectedOutcome == "totals" ? 2000 : 20;
-		
-		var dataFilter = theData.map(function(d){return {year: d.year, value:d[selectedGroup]} })
-		  
-		// Y axis
-		var y = d3.scaleLinear()
-		.domain( [0,theMax])
-		.range([ height, 0 ]);
-		svg.select(".yaxis")
+function updateGeo(geojson) {
+  var u = d3.select('svg')
+    .selectAll('path')
+    .data(geojson.features);
+
+	u.enter()
+    .append('path')
+	.attr("class", "region")
+    .attr('d', geoGenerator)
+	.style("fill", getRegionColour)
+	.on("mouseover", mapmouseover)
+	.on("mousemove", mapmousemove)
+	.on("mouseleave", mapmouseleave)
+	.on("click", mapmouseclick)
+}
+
+function updateRegionColours()
+{
+	  var u = d3.select('svg')
+    .selectAll('path.region')
+	.transition()
+	.duration(500)
+	.style("opacity", 1)
+	.style("fill", getRegionColour);
+}
+
+var colours = { teal : "#69b3a2", grey : "#aaa" };
+
+var rates_data;
+var totals_data;
+var line;
+var dot;
+var x;
+var y;
+var selectedRegion;
+var yLabel;
+var chartLabel;
+var geojson;
+
+function optionsAndUpdate()
+{
+	// recover the option that has been chosen
+	var selectedMeasure = d3.select("#measureButton").property("value")
+	// run the updateChart function with this selected option
+	update(selectedRegion, selectedMeasure)
+}
+
+// A function that updates the chart
+function update(selectedGroup, selectedMeasure) {
+
+	// Create new data with the selection?  
+	var theData = selectedMeasure == "totals" ? totals_data : rates_data;
+	var theMax = selectedMeasure == "totals" ? 2000 : 20;
+	
+	var dataFilter = theData.map(function(d){return {year: d.year, value:d[selectedGroup]} })
+	  
+	// Y axis
+	var y = d3.scaleLinear()
+	.domain( [0,theMax])
+	.range([ height, 0 ]);
+	svg.select(".yaxis")
+	.transition()
+	.duration(1000)
+	.call(d3.axisLeft(y));
+
+	  // Give these new data to update line
+	  line
+		  .datum(dataFilter)
+		  .transition()
+		  .duration(1000)
+		  .attr("d", d3.line()
+			.x(function(d) { return x(+d.year) })
+			.y(function(d) { return y(+d.value) })
+		  )
+	  dot
+		.data(dataFilter)
 		.transition()
 		.duration(1000)
-		.call(d3.axisLeft(y));
+		  .attr("cx", function(d) { return x(+d.year) })
+		  .attr("cy", function(d) { return y(+d.value) })
+		  
+	// update y label
+	ylabel
+	.transition()
+	.duration(500)
+	.style("opacity",0)
+	
+	ylabel
+	.transition()
+	.delay(500)
+	.duration(500)
+	.style("opacity",1)
+	.text(measures.get(selectedMeasure));
+	
+	// update chart label
+	chartLabel
+	.transition()
+	.duration(500)
+	.style("opacity",0)
+	
+	chartLabel
+	.transition()
+	.delay(500)
+	.duration(500)
+	.style("opacity",1)
+	.text(codesMap.get(selectedRegion));
+}
 
-		  // Give these new data to update line
-		  line
-			  .datum(dataFilter)
-			  .transition()
-			  .duration(1000)
-			  .attr("d", d3.line()
-				.x(function(d) { return x(+d.year) })
-				.y(function(d) { return y(+d.value) })
-			  )
-		  dot
-			.data(dataFilter)
-			.transition()
-			.duration(1000)
-			  .attr("cx", function(d) { return x(+d.year) })
-			  .attr("cy", function(d) { return y(+d.value) })
-			  
-		
 
-		}
-		
-		function optionsAndUpdate(d)
-		{
-			// recover the option that has been chosen
-			var selectedOption = d3.select("#selectButton").property("value")
-			var selectedOutcome = d3.select("#outcomeButton").property("value")
-			// run the updateChart function with this selected option
-			update(selectedOption, selectedOutcome)
-		}
+//Read the data
+d3.csv('sco_lad_codes_and_names.csv', function(lookup)
+{
+	lookup.reduce(function(map, obj) {
+		codesMap.set(obj.code, obj.name);
+	}, {});
+	
+	selectedRegion = lookup[0].code;
+	
+	d3.json('sco_lad.json', function(err, json) {
+		d3.csv("termination_rates.csv", function(r_data) {
+			d3.csv("termination_totals.csv", function(t_data) {
+			
+				geojson = json;
+			
+				updateGeo(json);
+				
+				totals_data = t_data;
+				rates_data = r_data;
 
-		// When the button is changed, run the updateChart function
-		d3.select("#selectButton").on("change", optionsAndUpdate)
-		
-		// add a listener to outcome selector
-		d3.select('#outcomeButton').on("change", optionsAndUpdate)
-		
+				// Create data usng initial selection
+				var theData = firstMeasure == "totals" ? totals_data : rates_data;
+				var theMax = firstMeasure == "totals" ? 2000 : 20;
+				var dataFilter = theData.map(function(d){return {year: d.year, value:d[firstGroup]} })
 
+				// List of groups (here I have one group per column)
+				var allGroup = totals_data.columns.slice(1)
+				  
+				 // add the options to the measures button
+				 d3.select("#measureButton")
+				 .append("option")
+				 .text("show totals")
+				 .attr("value", "totals");
+				 d3.select("#measureButton")
+				 .append("option")
+				 .text("show rates")
+				 .attr("value", "rates");
+
+				// Add X axis --> it is a date format
+				x = d3.scaleLinear()
+				  .domain([2013,2017])
+				  .range([ 0, chartWidth ]);
+				svg.append("g")
+				  .attr("class", "xaxis")
+				  .attr("transform", "translate(0," + height + ")")
+				  .call(d3.axisBottom(x).ticks(5).tickFormat(d3.format("d")));
+
+				// Add Y axis
+				y = d3.scaleLinear()
+				  .domain( [0,theMax])
+				  .range([ height, 0 ]);
+				svg.append("g")
+				  .attr("class", "yaxis")
+				  .call(d3.axisLeft(y));
+				  
+				// Initialize line with group a
+				line = svg
+				  .append('g')
+				  .append("path")
+					.datum(dataFilter)
+					.attr("d", d3.line()
+					  .x(function(d) { return x(+d.year) })
+					  .y(function(d) { return y(+d.value) })
+					)
+					.attr("stroke", "black")
+					.style("stroke-width", 4)
+					.style("fill", "none")
+
+				// Initialize dots with group a
+				dot = svg
+				  .selectAll('circle')
+				  .data(dataFilter)
+				  .enter()
+				  .append('circle')
+					.attr("cx", function(d) { return x(+d.year) })
+					.attr("cy", function(d) { return y(+d.value) })
+					.attr("r", 7)
+					.style("fill", colours.teal)
+					.on("mouseover", mouseover)
+					.on("mousemove", mousemove)
+					.on("mouseleave", mouseleave)
+					
+				ylabel = svg
+				.append("text")
+				.attr("class", "ylabel")
+				.attr("text-anchor", "end")
+				.attr("y", -margin.left)
+				.attr("dy", ".75em")
+				.attr("transform", "rotate(-90)")
+				.text(measures.get(firstMeasure));
+				
+				chartLabel = svg
+				.append("text")
+				.attr("class", "chartlabel")
+				.attr("y", 0)
+				.attr("dy", ".75em")
+				.attr("x", 0)
+				.attr("dx", "1em")
+				.text(codesMap.get(selectedRegion));
+				
+				// add a listener to measure selector
+				d3.select('#measureButton').on("change", optionsAndUpdate)
+			})
+		})
 	})
 })
 
