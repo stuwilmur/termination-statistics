@@ -70,8 +70,8 @@
 
 <!-- Create a div where the graph will take place -->
 <div id="my_dataviz"></div>
-<p class="caption">Termination figures for Scotland by Local Authority 2013-2017.</p>
-<p class="subcaption">Data from the <a href="https://hpsmicrosites.scot.nhs.uk/shbbv-framework-data-portal.aspx">Scottish Government's Sexual Health and Blood Borne Virus (SHBBV) open access Data Portal</a>.</p>
+<p class="caption">Termination figures for Scotland by Local Authority 2010-2019.</p>
+<p class="subcaption">Data from the <a href="https://beta.isdscotland.org/find-publications-and-data/population-health/sexual-health/termination-of-pregnancy-statistics/">Termination of Pregnancy report, Public Health Scotland Data and Intelligence, published 25 August 2020.</a>.</p>
 
 <script>
 
@@ -347,7 +347,7 @@ d3.csv('sco_lad_codes_and_names.csv', function(lookup)
 
 				// Add X axis --> it is a date format
 				x = d3.scaleLinear()
-				  .domain([2013,2017])
+				  .domain([2010,2019])
 				  .range([ 0, chartWidth ]);
 				svg.append("g")
 				  .attr("class", "xaxis")
